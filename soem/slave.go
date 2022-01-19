@@ -5,11 +5,13 @@ package soem
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <soem/ethercat.h>
 
 */
 import "C"
 import (
+	"fmt"
 	"unsafe"
 )
 
@@ -37,6 +39,11 @@ type Slave struct {
 	InterfaceType uint16
 	// Device type
 	DeviceType uint16
+
+	PDO *SlavePDO
+}
+
+type SlavePDO struct {
 	// input bits
 	InputBits uint16
 	// input bytes, if Ibits < 8 then Ibytes = 0
@@ -51,9 +58,43 @@ type Slave struct {
 }
 
 func (s *Slave) Read() []byte {
-	return C.GoBytes(unsafe.Pointer(s.outputBuffer), C.int(s.OutputBytes))
+	if s.PDO != nil {
+		l := s.PDO.InputBytes
+		if s.PDO.InputBytes < 1 && s.PDO.InputBits > 0 {
+			l = 1
+		}
+		return C.GoBytes(unsafe.Pointer(s.PDO.inputBuffer), C.int(l))
+	}
+	return nil
 }
 
-func (s *Slave) Write(data []byte) []byte {
-	return nil
+func (s *Slave) Write(data []byte) {
+	if s.PDO != nil {
+		l := s.PDO.OutputBytes
+		if s.PDO.OutputBytes < 1 && s.PDO.OutputBits > 0 {
+			l = 1
+		}
+		l = l
+
+		C.memcpy(unsafe.Pointer(s.PDO.outputBuffer), unsafe.Pointer(&data[0]), C.size_t(len(data)))
+	}
+}
+
+func (slave *Slave) String() string {
+	return fmt.Sprintf(
+		"Name %s\n"+
+			"  Vendor ID 0x%08x\n"+
+			"  Product Code 0x%08x\n"+
+			"  Revision 0x%08x\n"+
+			"  Configured Address 0x%04x\n"+
+			"  Alias Address 0x%04x\n"+
+			"  Input Bits %d\n"+
+			"  Input Bytes %d\n"+
+			"  Output Bits %d\n"+
+			"  Output Bytes %d\n"+
+			"  Configured Address 0x\n",
+		slave.Name, slave.VendorID, slave.ProductCode, slave.Revision,
+		slave.ConfiguredAddress, slave.AliasAddress,
+		slave.PDO.InputBits, slave.PDO.InputBytes,
+		slave.PDO.OutputBits, slave.PDO.OutputBytes)
 }

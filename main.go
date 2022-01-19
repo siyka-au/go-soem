@@ -5,11 +5,16 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"time"
 
 	"github.com/siyka-au/go-soem/soem"
 )
 
+/*
+ * Slave layout for testing
+ * EK1100 > EL1008 > EL1004 > EL2008 > EL2004
+ */
 func main() {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
@@ -51,7 +56,7 @@ func run(ctx context.Context, args []string) error {
 		fmt.Println(err)
 	}
 
-	// printSlaveDetails(master)
+	printSlaveDetails(master)
 
 	// send one valid process data to make outputs of the slaves happy
 	master.SendProcessData()
@@ -69,30 +74,45 @@ func run(ctx context.Context, args []string) error {
 	}
 
 	go func() {
-		slave := master.Slaves[1]
+		const light0Max uint8 = 1 << 7
+		const light1Max uint8 = 1 << 3
+		light0DirUp := true
+		light1DirUp := true
+		lights0 := uint8(1)
+		lights1 := uint8(1)
 
-		for {
-			fmt.Print("Inputs: ")
-			fmt.Println(slave.Read())
-			time.Sleep(1 * time.Second)
+		calcDir := func(dir bool, max, min, val uint8) bool {
+			return (!(val == max) && (val == min)) || (dir && !(val == max))
 		}
 
-		//
+		stepLight := func(dir bool, val uint8) uint8 {
+			if dir {
+				return val << 1
+			} else {
+				return val >> 1
+			}
+		}
 
-		// tmp = bytearray([0 for i in range(output_len)])
+		/*
+		 * Main PDO loop
+		 * Print inputs as binary strings
+		 * Bit shift a bit through the output range
+		 */
 
-		// toggle = True
-		// try:
-		//     while 1:
-		//         if toggle:
-		//             tmp[0] = 0x00
-		//         else:
-		//             tmp[0] = 0x02
-		//         self._master.slaves[2].output = bytes(tmp)
+		for {
+			fmt.Printf("Inputs: %08b %08b\r", master.Slaves[1].Read()[0], master.Slaves[2].Read()[0])
 
-		//         toggle ^= True
+			light0DirUp = calcDir(light0DirUp, light0Max, 1, lights0)
+			light1DirUp = calcDir(light1DirUp, light1Max, 1, lights1)
 
-		//         time.sleep(1)
+			lights0 = stepLight(light0DirUp, lights0)
+			lights1 = stepLight(light1DirUp, lights1)
+
+			master.Slaves[3].Write([]byte{lights0})
+			master.Slaves[4].Write([]byte{lights1})
+
+			time.Sleep(100 * time.Millisecond)
+		}
 	}()
 
 	for {
@@ -131,21 +151,6 @@ func stateCheck(master *soem.Master, state soem.EtherCATState) error {
 
 func printSlaveDetails(master *soem.Master) {
 	for i, slave := range master.Slaves {
-		fmt.Printf(
-			"Slave %d Name %s\n"+
-				"  Vendor ID 0x%08x\n"+
-				"  Product Code 0x%08x\n"+
-				"  Revision 0x%08x\n"+
-				"  Configured Address 0x%04x\n"+
-				"  Alias Address 0x%04x\n"+
-				"  Input Bits %d\n"+
-				"  Input Bytes %d\n"+
-				"  Output Bits %d\n"+
-				"  Output Bytes %d\n"+
-				"  Configured Address 0x\n",
-			i, slave.Name, slave.VendorID, slave.ProductCode, slave.Revision,
-			slave.ConfiguredAddress, slave.AliasAddress,
-			slave.InputBits, slave.InputBytes,
-			slave.OutputBits, slave.OutputBytes)
+		fmt.Printf("Slave %d\n%s\n", i+1, "  "+strings.ReplaceAll(slave.String(), "\n", "\n  "))
 	}
 }

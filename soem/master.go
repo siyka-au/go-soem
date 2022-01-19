@@ -46,14 +46,45 @@ func (m *Master) Close() {
 
 func (m *Master) ConfigInit() {
 	m.SlaveCount = uint16(C.ecx_config_init(&m.context, 0))
-	m.updateMaster()
 	m.Slaves = make([]*Slave, m.SlaveCount)
-	m.updateSlaves()
+
+	for i := 0; i < int(m.SlaveCount); i++ {
+		// Do stuff to update the slaves
+		slave := new(Slave)
+		cslave := C.ec_slave[i+1]
+
+		slave.VendorID = uint32(cslave.eep_man)
+		slave.ProductCode = uint32(cslave.eep_id)
+		slave.Revision = uint32(cslave.eep_rev)
+		slave.Name = C.GoString(&cslave.name[0])
+
+		slave.State = EtherCATState(cslave.state)
+		slave.ALStatusCode = uint16(cslave.ALstatuscode)
+		slave.AliasAddress = uint16(cslave.aliasadr)
+		slave.ConfiguredAddress = uint16(cslave.configadr)
+
+		m.Slaves[i] = slave
+	}
 }
 
 func (m *Master) ConfigMapWithGroup(group uint8, size uint) {
 	m.ioMap = C.malloc(C.size_t(size))
 	m.ioMapSize = C.ecx_config_map_group(&m.context, m.ioMap, C.uchar(group))
+
+	for i, s := range m.Slaves {
+		cslave := C.ec_slave[i+1]
+
+		pdo := SlavePDO{
+			uint16(cslave.Ibits),
+			uint32(cslave.Ibytes),
+			uint16(cslave.Obits),
+			uint32(cslave.Obytes),
+			cslave.inputs,
+			cslave.outputs}
+
+		m.Slaves[i].PDO = &pdo
+		fmt.Println(s)
+	}
 }
 
 func (m *Master) ConfigMap(size uint) {
@@ -90,36 +121,6 @@ func (m *Master) CheckState(slave uint16, expectedState EtherCATState, timeout i
 	}
 
 	return state, nil
-}
-
-func (m *Master) updateMaster() {
-
-}
-
-func (m *Master) updateSlaves() {
-	for i := 1; i <= int(m.SlaveCount); i++ {
-		// Do stuff to update the slaves
-		slave := new(Slave)
-		cslave := C.ec_slave[i]
-
-		slave.VendorID = uint32(cslave.eep_man)
-		slave.ProductCode = uint32(cslave.eep_id)
-		slave.Revision = uint32(cslave.eep_rev)
-		slave.Name = C.GoString(&cslave.name[0])
-
-		slave.State = EtherCATState(cslave.state)
-		slave.ALStatusCode = uint16(cslave.ALstatuscode)
-		slave.AliasAddress = uint16(cslave.aliasadr)
-		slave.ConfiguredAddress = uint16(cslave.configadr)
-		slave.InputBits = uint16(cslave.Ibits)
-		slave.InputBytes = uint32(cslave.Ibytes)
-		slave.OutputBits = uint16(cslave.Obits)
-		slave.OutputBytes = uint32(cslave.Obytes)
-
-		slave.inputBuffer = cslave.inputs
-		slave.outputBuffer = cslave.outputs
-		m.Slaves[i-1] = slave
-	}
 }
 
 func (m *Master) SendProcessDataWithGroup(group uint8) {
