@@ -242,11 +242,13 @@ type Slave struct {
 	// output bytes, if Obits < 8 then Obytes = 0
 	OutputBytes uint32
 
-	Outputs []byte
+	inputBuffer  *(C.uchar)
+	outputBuffer *(C.uchar)
 }
 
 type Master struct {
-	SlaveCount uint
+	SlaveCount uint16
+	Slaves     []*Slave
 
 	context   C.ecx_contextt
 	ioMap     unsafe.Pointer
@@ -274,7 +276,10 @@ func (m *Master) Close() {
 }
 
 func (m *Master) ConfigInit() {
-	m.SlaveCount = uint(C.ecx_config_init(&m.context, 0))
+	m.SlaveCount = uint16(C.ecx_config_init(&m.context, 0))
+	m.updateMaster()
+	m.Slaves = make([]*Slave, m.SlaveCount)
+	m.updateSlaves()
 }
 
 func (m *Master) ConfigMapWithGroup(group uint8, size uint) {
@@ -284,25 +289,6 @@ func (m *Master) ConfigMapWithGroup(group uint8, size uint) {
 
 func (m *Master) ConfigMap(size uint) {
 	m.ConfigMapWithGroup(0, size)
-}
-
-func (m *Master) GetSlave(index uint) (*Slave, error) {
-	if index >= m.SlaveCount {
-		return nil, errors.New("slave index out of range")
-	}
-	return marshalSlave(C.ec_slave[index+1]), nil
-}
-
-func (m *Master) GetSlaves() ([]Slave, error) {
-	slaves := make([]Slave, m.SlaveCount)
-	for i := uint(0); i < m.SlaveCount; i++ {
-		slave, err := m.GetSlave(i)
-		if err != nil {
-			return nil, err
-		}
-		slaves[i] = *slave
-	}
-	return slaves, nil
 }
 
 func (m *Master) ReadState() int {
@@ -337,6 +323,44 @@ func (m *Master) CheckState(slave uint16, expectedState EtherCATState, timeout i
 	return state, nil
 }
 
+func (m *Master) updateMaster() {
+
+}
+
+func (m *Master) updateSlaves() {
+	for i := 1; i <= int(m.SlaveCount); i++ {
+		// Do stuff to update the slaves
+		slave := new(Slave)
+		cslave := C.ec_slave[i]
+
+		slave.VendorID = uint32(cslave.eep_man)
+		slave.ProductCode = uint32(cslave.eep_id)
+		slave.Revision = uint32(cslave.eep_rev)
+		slave.Name = C.GoString(&cslave.name[0])
+
+		slave.State = EtherCATState(cslave.state)
+		slave.ALStatusCode = uint16(cslave.ALstatuscode)
+		slave.AliasAddress = uint16(cslave.aliasadr)
+		slave.ConfiguredAddress = uint16(cslave.configadr)
+		slave.InputBits = uint16(cslave.Ibits)
+		slave.InputBytes = uint32(cslave.Ibytes)
+		slave.OutputBits = uint16(cslave.Obits)
+		slave.OutputBytes = uint32(cslave.Obytes)
+
+		slave.inputBuffer = cslave.inputs
+		slave.outputBuffer = cslave.outputs
+		m.Slaves[i-1] = slave
+	}
+}
+
+func (s *Slave) Read() []byte {
+	return C.GoBytes(unsafe.Pointer(s.outputBuffer), C.int(s.OutputBytes))
+}
+
+func (s *Slave) Write(data []byte) []byte {
+	return nil
+}
+
 func (m *Master) SendProcessDataWithGroup(group uint8) {
 	C.ecx_send_processdata(&m.context)
 }
@@ -366,21 +390,16 @@ func (m *Master) isError() bool {
 
 func marshalSlave(cslave C.ec_slavet) *Slave {
 	slave := new(Slave)
-	slave.VendorID = uint32(cslave.eep_man)
-	slave.ProductCode = uint32(cslave.eep_id)
-	slave.Revision = uint32(cslave.eep_rev)
-	slave.Name = C.GoString(&cslave.name[0])
 
-	slave.State = EtherCATState(cslave.state)
-	slave.ALStatusCode = uint16(cslave.ALstatuscode)
-	slave.AliasAddress = uint16(cslave.aliasadr)
-	slave.ConfiguredAddress = uint16(cslave.configadr)
-	slave.InputBits = uint16(cslave.Ibits)
-	slave.InputBytes = uint32(cslave.Ibytes)
-	slave.OutputBits = uint16(cslave.Obits)
-	slave.OutputBytes = uint32(cslave.Obytes)
+	ptr := unsafe.Pointer(cslave.inputs)
+	fmt.Print("Inputs Pointer: ")
+	fmt.Println(ptr)
 
-	z := unsafe.Slice(cslave.outputs, cslave.Obytes)
-	slave.Outputs = ([]byte)(z)[:]
+	ptr = unsafe.Pointer(cslave.outputs)
+	fmt.Print("Outputs Pointer: ")
+	fmt.Println(ptr)
+	// z := (*[1 << 30]C.uint)(ptr)
+	// fmt.Println(z[0:1]
+
 	return slave
 }

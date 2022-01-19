@@ -68,25 +68,34 @@ func run(ctx context.Context, args []string) error {
 		fmt.Println(err)
 	}
 
-	go func() {
-	    outputLen := master.GetSlave(2).OutputBytes
-		len(self._master.slaves[2].output)
+	// go func() {
+	// 	slave, err := master.GetSlave(1)
+	// 	if err != nil {
+	// 		fmt.Println(err)
+	// 	}
 
-        tmp = bytearray([0 for i in range(output_len)])
+	// 	for {
+	// 		fmt.Println(slave.Inputs)
+	// 		time.Sleep(1 * time.Second)
+	// 	}
 
-        toggle = True
-        try:
-            while 1:
-                if toggle:
-                    tmp[0] = 0x00
-                else:
-                    tmp[0] = 0x02
-                self._master.slaves[2].output = bytes(tmp)
+	// 	//
 
-                toggle ^= True
+	// 	// tmp = bytearray([0 for i in range(output_len)])
 
-                time.sleep(1)
-	}()
+	// 	// toggle = True
+	// 	// try:
+	// 	//     while 1:
+	// 	//         if toggle:
+	// 	//             tmp[0] = 0x00
+	// 	//         else:
+	// 	//             tmp[0] = 0x02
+	// 	//         self._master.slaves[2].output = bytes(tmp)
+
+	// 	//         toggle ^= True
+
+	// 	//         time.sleep(1)
+	// }()
 
 	for {
 		select {
@@ -108,16 +117,12 @@ func run(ctx context.Context, args []string) error {
 }
 
 func stateCheck(master *soem.Master, state soem.EtherCATState) error {
-	state, err := master.CheckState(0, state, soem.EC_TIMEOUTSTATE)
+	actState, err := master.CheckState(0, state, soem.EC_TIMEOUTSTATE)
 	if err != nil {
 		master.ReadState()
-		slaves, err := master.GetSlaves()
-		if err != nil {
-			return err
-		}
-		for i, slave := range slaves {
+		for i, slave := range master.Slaves {
 			if slave.State != state {
-				return fmt.Errorf("slave %d has state %s, expected %s", i, slave.State, state)
+				return fmt.Errorf("slave %d has state %s, expected %s", i, actState, state)
 			}
 		}
 	}
@@ -127,8 +132,7 @@ func stateCheck(master *soem.Master, state soem.EtherCATState) error {
 }
 
 func printSlaveDetails(master *soem.Master) {
-	slaves, _ := master.GetSlaves()
-	for i, slave := range slaves {
+	for i, slave := range master.Slaves {
 		fmt.Printf(
 			"Slave %d Name %s\n"+
 				"  Vendor ID 0x%08x\n"+
