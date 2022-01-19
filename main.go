@@ -64,38 +64,36 @@ func run(ctx context.Context, args []string) error {
 		fmt.Printf("WKC: %d after SetState()\n", wkc)
 	}
 
-	if err := stateCheck(master, soem.EC_STATE_SAFE_OP); err != nil {
+	if err := stateCheck(master, soem.EC_STATE_OPERATIONAL); err != nil {
 		fmt.Println(err)
 	}
 
-	// go func() {
-	// 	slave, err := master.GetSlave(1)
-	// 	if err != nil {
-	// 		fmt.Println(err)
-	// 	}
+	go func() {
+		slave := master.Slaves[1]
 
-	// 	for {
-	// 		fmt.Println(slave.Inputs)
-	// 		time.Sleep(1 * time.Second)
-	// 	}
+		for {
+			fmt.Print("Inputs: ")
+			fmt.Println(slave.Read())
+			time.Sleep(1 * time.Second)
+		}
 
-	// 	//
+		//
 
-	// 	// tmp = bytearray([0 for i in range(output_len)])
+		// tmp = bytearray([0 for i in range(output_len)])
 
-	// 	// toggle = True
-	// 	// try:
-	// 	//     while 1:
-	// 	//         if toggle:
-	// 	//             tmp[0] = 0x00
-	// 	//         else:
-	// 	//             tmp[0] = 0x02
-	// 	//         self._master.slaves[2].output = bytes(tmp)
+		// toggle = True
+		// try:
+		//     while 1:
+		//         if toggle:
+		//             tmp[0] = 0x00
+		//         else:
+		//             tmp[0] = 0x02
+		//         self._master.slaves[2].output = bytes(tmp)
 
-	// 	//         toggle ^= True
+		//         toggle ^= True
 
-	// 	//         time.sleep(1)
-	// }()
+		//         time.sleep(1)
+	}()
 
 	for {
 		select {
