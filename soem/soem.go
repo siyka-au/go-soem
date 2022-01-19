@@ -241,6 +241,8 @@ type Slave struct {
 	OutputBits uint16
 	// output bytes, if Obits < 8 then Obytes = 0
 	OutputBytes uint32
+
+	Outputs []byte
 }
 
 type Master struct {
@@ -378,5 +380,7 @@ func marshalSlave(cslave C.ec_slavet) *Slave {
 	slave.OutputBits = uint16(cslave.Obits)
 	slave.OutputBytes = uint32(cslave.Obytes)
 
+	z := unsafe.Slice(cslave.outputs, cslave.Obytes)
+	slave.Outputs = ([]byte)(z)[:]
 	return slave
 }
