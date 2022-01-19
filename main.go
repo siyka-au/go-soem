@@ -51,25 +51,12 @@ func run(ctx context.Context, args []string) error {
 		fmt.Println(err)
 	}
 
-	// slaves, _ := master.GetSlaves()
-	// for i, slave := range slaves {
-	// 	fmt.Printf(
-	// 		"Slave %d Name %s\n"+
-	// 			"  Vendor ID 0x%08x\n"+
-	// 			"  Product Code 0x%08x\n"+
-	// 			"  Revision 0x%08x\n"+
-	// 			"  Configured Address 0x%04x\n"+
-	// 			"  Alias Address 0x%04x\n"+
-	// 			"  Input Bits %d\n"+
-	// 			"  Input Bytes %d\n"+
-	// 			"  Output Bits %d\n"+
-	// 			"  Output Bytes %d\n"+
-	// 			"  Configured Address 0x\n",
-	// 		i, slave.Name, slave.VendorID, slave.ProductCode, slave.Revision,
-	// 		slave.ConfiguredAddress, slave.AliasAddress,
-	// 		slave.InputBits, slave.InputBytes,
-	// 		slave.OutputBits, slave.OutputBytes)
-	// }
+	// printSlaveDetails(master)
+
+	// send one valid process data to make outputs of the slaves happy
+	master.SendProcessData()
+	wkc := master.ReceiveProcessData(soem.EC_TIMEOUTRET)
+	fmt.Printf("WKC: %d after ReceiveProcessData\n", wkc)
 
 	if wkc, err := master.SetState(soem.EC_STATE_OPERATIONAL); err != nil {
 		return err
@@ -81,29 +68,41 @@ func run(ctx context.Context, args []string) error {
 		fmt.Println(err)
 	}
 
-	master.SendProcessData()
-	wkc := master.ReceiveProcessData(soem.EC_TIMEOUTRET)
-	fmt.Printf("WKC: %d after ReceiveProcessData\n", wkc)
-
-	if err := stateCheck(master, soem.EC_STATE_OPERATIONAL); err != nil {
-		return err
-	}
-
-	// Process data
 	go func() {
-		for {
-			master.SendProcessData()
-			wkc = master.ReceiveProcessData(soem.EC_TIMEOUTRET)
-		}
+	    outputLen := master.GetSlave(2).OutputBytes
+		len(self._master.slaves[2].output)
+
+        tmp = bytearray([0 for i in range(output_len)])
+
+        toggle = True
+        try:
+            while 1:
+                if toggle:
+                    tmp[0] = 0x00
+                else:
+                    tmp[0] = 0x02
+                self._master.slaves[2].output = bytes(tmp)
+
+                toggle ^= True
+
+                time.sleep(1)
 	}()
 
 	for {
 		select {
 		case <-ctx.Done():
+			if _, err := master.SetState(soem.EC_STATE_INIT); err != nil {
+				return err
+			}
+			if err := stateCheck(master, soem.EC_STATE_INIT); err != nil {
+				return err
+			}
 			return nil
 		default:
-			// do a piece of work
-			time.Sleep(1 * time.Second)
+			// Process data
+			master.SendProcessData()
+			master.ReceiveProcessData(soem.EC_TIMEOUTRET)
+			time.Sleep(10 * time.Millisecond)
 		}
 	}
 }
@@ -125,4 +124,26 @@ func stateCheck(master *soem.Master, state soem.EtherCATState) error {
 
 	fmt.Printf("Current State: %s\n", state)
 	return nil
+}
+
+func printSlaveDetails(master *soem.Master) {
+	slaves, _ := master.GetSlaves()
+	for i, slave := range slaves {
+		fmt.Printf(
+			"Slave %d Name %s\n"+
+				"  Vendor ID 0x%08x\n"+
+				"  Product Code 0x%08x\n"+
+				"  Revision 0x%08x\n"+
+				"  Configured Address 0x%04x\n"+
+				"  Alias Address 0x%04x\n"+
+				"  Input Bits %d\n"+
+				"  Input Bytes %d\n"+
+				"  Output Bits %d\n"+
+				"  Output Bytes %d\n"+
+				"  Configured Address 0x\n",
+			i, slave.Name, slave.VendorID, slave.ProductCode, slave.Revision,
+			slave.ConfiguredAddress, slave.AliasAddress,
+			slave.InputBits, slave.InputBytes,
+			slave.OutputBits, slave.OutputBytes)
+	}
 }
