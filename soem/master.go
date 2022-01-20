@@ -12,6 +12,7 @@ import "C"
 import (
 	"errors"
 	"fmt"
+	"time"
 	"unsafe"
 )
 
@@ -63,8 +64,24 @@ func (m *Master) ConfigInit() {
 		slave.AliasAddress = uint16(cslave.aliasadr)
 		slave.ConfiguredAddress = uint16(cslave.configadr)
 
+		slave.HasDC = cslave.hasdc == 1
+		slave.D = uint8(cslave.hasdc)
+
 		m.Slaves[i] = slave
 	}
+}
+
+func (m *Master) ConfigDC() bool {
+	return C.ecx_configdc(&m.context) == 1
+}
+
+func (m *Master) DCSync0(slave uint16, cycleTime, cycleShift time.Duration) {
+	C.ecx_dcsync0(
+		&m.context,
+		C.ushort(slave),
+		C.uchar(1),
+		C.uint(cycleTime.Nanoseconds()),
+		C.int(cycleShift.Nanoseconds()))
 }
 
 func (m *Master) ConfigMapWithGroup(group uint8, size uint) {
