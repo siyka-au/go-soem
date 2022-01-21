@@ -50,6 +50,10 @@ func run(ctx context.Context, args []string) error {
 	master.ConfigInit()
 	fmt.Printf("Found %d attached slaves\n", master.SlaveCount)
 
+	// if master.ConfigDC() && master.Slaves[2].HasDC {
+	// 	master.DCSync0(2, 200*time.Millisecond, 0)
+	// }
+
 	master.ConfigMap(1024)
 
 	if err := stateCheck(master, soem.EC_STATE_SAFE_OP); err != nil {
@@ -73,65 +77,69 @@ func run(ctx context.Context, args []string) error {
 		fmt.Println(err)
 	}
 
+	ticker := time.NewTicker(200 * time.Millisecond)
+
 	go func() {
 		const light0Max uint8 = 1 << 7
 		const light1Max uint8 = 1 << 3
-		light0DirUp := true
-		light1DirUp := true
-		lights0 := uint8(1)
-		lights1 := uint8(1)
+		// light0DirUp := true
+		// light1DirUp := true
+		// lights0 := uint8(1)
+		// lights1 := uint8(1)
 
-		calcDir := func(dir bool, max, min, val uint8) bool {
-			return (!(val == max) && (val == min)) || (dir && !(val == max))
-		}
+		// calcDir := func(dir bool, max, min, val uint8) bool {
+		// 	return (!(val == max) && (val == min)) || (dir && !(val == max))
+		// }
 
-		stepLight := func(dir bool, val uint8) uint8 {
-			if dir {
-				return val << 1
-			} else {
-				return val >> 1
-			}
-		}
+		// stepLight := func(dir bool, val uint8) uint8 {
+		// 	if dir {
+		// 		return val << 1
+		// 	} else {
+		// 		return val >> 1
+		// 	}
+		// }
 
 		/*
 		 * Main PDO loop
 		 * Print inputs as binary strings
 		 * Bit shift a bit through the output range
 		 */
-
 		for {
-			fmt.Printf("Inputs: %08b %08b\r", master.Slaves[1].Read()[0], master.Slaves[2].Read()[0])
+			select {
+			case <-ticker.C:
+				fmt.Println("Processing I/O")
+				master.SendProcessData()
+				master.ReceiveProcessData(soem.EC_TIMEOUTRET)
 
-			light0DirUp = calcDir(light0DirUp, light0Max, 1, lights0)
-			light1DirUp = calcDir(light1DirUp, light1Max, 1, lights1)
+				// fmt.Printf("Inputs: %08b %08b\r", master.Slaves[1].Read()[0], master.Slaves[2].Read()[0])
 
-			lights0 = stepLight(light0DirUp, lights0)
-			lights1 = stepLight(light1DirUp, lights1)
+				// light0DirUp = calcDir(light0DirUp, light0Max, 1, lights0)
+				// light1DirUp = calcDir(light1DirUp, light1Max, 1, lights1)
 
-			master.Slaves[3].Write([]byte{lights0})
-			master.Slaves[4].Write([]byte{lights1})
+				// lights0 = stepLight(light0DirUp, lights0)
+				// lights1 = stepLight(light1DirUp, lights1)
 
-			time.Sleep(100 * time.Millisecond)
+				// master.Slaves[3].Write([]byte{lights0})
+				// master.Slaves[4].Write([]byte{lights1})
+
+				master.Slaves[0].Write([]byte{1, 2, 3, 4, 5, 6, 7, 8})
+			case <-ctx.Done():
+				ticker.Stop()
+				return
+			}
+
 		}
 	}()
 
-	for {
-		select {
-		case <-ctx.Done():
-			if _, err := master.SetState(soem.EC_STATE_INIT); err != nil {
-				return err
-			}
-			if err := stateCheck(master, soem.EC_STATE_INIT); err != nil {
-				return err
-			}
-			return nil
-		default:
-			// Process data
-			master.SendProcessData()
-			master.ReceiveProcessData(soem.EC_TIMEOUTRET)
-			time.Sleep(10 * time.Millisecond)
-		}
+	<-ctx.Done()
+	if _, err := master.SetState(soem.EC_STATE_INIT); err != nil {
+		return err
 	}
+	if err := stateCheck(master, soem.EC_STATE_INIT); err != nil {
+		return err
+	}
+	return nil
+
 }
 
 func stateCheck(master *soem.Master, state soem.EtherCATState) error {

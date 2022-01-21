@@ -41,6 +41,10 @@ type Slave struct {
 	DeviceType uint16
 
 	PDO *SlavePDO
+
+	HasDC bool
+
+	D uint8
 }
 
 type SlavePDO struct {
@@ -92,9 +96,17 @@ func (slave *Slave) String() string {
 			"  Input Bytes %d\n"+
 			"  Output Bits %d\n"+
 			"  Output Bytes %d\n"+
-			"  Configured Address 0x\n",
+			"  Has DC %s (%d)\n",
 		slave.Name, slave.VendorID, slave.ProductCode, slave.Revision,
 		slave.ConfiguredAddress, slave.AliasAddress,
 		slave.PDO.InputBits, slave.PDO.InputBytes,
-		slave.PDO.OutputBits, slave.PDO.OutputBytes)
+		slave.PDO.OutputBits, slave.PDO.OutputBytes,
+		stringSelect(slave.HasDC, "Yes", "No"), slave.D)
+}
+
+func stringSelect(selector bool, trueStr, falseStr string) string {
+	if selector {
+		return trueStr
+	}
+	return falseStr
 }
