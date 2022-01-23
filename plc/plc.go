@@ -49,7 +49,7 @@ type AutoManual struct {
 type autoManualState uint8
 
 const (
-	stateInit autoManualTrigger = iota
+	stateInit autoManualState = iota
 	stateAutomatic
 	stateManual
 )
@@ -75,15 +75,6 @@ func NewAutoManual() AutoManual {
 	fsm.Configure(stateAutomatic).
 		OnEntry(func(_ context.Context, _ ...interface{}) error {
 			fmt.Println("Automatic Mode")
-			go func() {
-				for {
-					t := <-am.trig
-					if t == triggerEnterManual {
-						fsm.Fire(triggerEnterManual)
-						return
-					}
-				}
-			}()
 			return nil
 		}).
 		Permit(triggerEnterManual, stateManual)
@@ -96,14 +87,6 @@ func NewAutoManual() AutoManual {
 				<-timer1.C
 				fsm.Fire(triggerManualTimedOut)
 			}()
-			go func() {
-				for {
-					t := <-am.trig
-					if t == triggerCancelManual {
-						fsm.Fire(triggerCancelManual)
-					}
-				}
-			}()
 			return nil
 		}).
 		Permit(triggerManualTimedOut, stateAutomatic).
@@ -114,11 +97,11 @@ func NewAutoManual() AutoManual {
 }
 
 func (am *AutoManual) StartManual(t time.Duration) {
-	am.trig <- triggerEnterManual
+	am.fsm.Fire(triggerEnterManual)
 }
 
 func (am *AutoManual) CancelManual() {
-	am.trig <- triggerCancelManual
+	am.fsm.Fire(triggerCancelManual)
 }
 
 func (am *AutoManual) IsAutomatic() bool {
