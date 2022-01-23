@@ -103,7 +103,8 @@ func run(ctx context.Context, args []string) error {
 		}
 
 		trig := plc.NewRisingEdge()
-		ctrl := plc.NewController()
+		// ctrl := controller.NewController()
+		am := plc.NewAutoManual()
 
 		/*
 		 * Main PDO loop
@@ -121,10 +122,12 @@ func run(ctx context.Context, args []string) error {
 				// el1004 := master.Slaves[2].Read()[0]
 				// fmt.Printf("Inputs: %08b %08b\n", el1008, el1004)
 
-				trigged := trig.Run(el1008&0x01 != 0)
-				// fmt.Printf("Did we trig? %t\n", trigged)
-				if trigged {
-					ctrl.Bump()
+				if trig.Run(el1008&0x01 != 0) {
+					am.StartManual(10 * time.Second)
+				}
+
+				if trig.Run(el1008&0x02 != 0) {
+					am.CancelManual()
 				}
 
 				light0DirUp = calcDir(light0DirUp, light0Max, 1, lights0)
