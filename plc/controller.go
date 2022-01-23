@@ -41,13 +41,16 @@ func NewController() Controller {
 	trig := make(chan string, 5)
 	ctrl := Controller{fsm, trig}
 
+	fsm.Configure(stateInit).
+		Permit(triggerInit, stateIdle)
+
 	fsm.Configure(stateIdle).
 		OnEntry(func(_ context.Context, _ ...interface{}) error {
-			fmt.Println(stateIdle)
+			fmt.Println("Idle")
 			go func() {
 				<-ctrl.trig
 				fsm.Fire(triggerStart)
-			}
+			}()
 			return nil
 		}).
 		Permit(triggerStart, stateStarting)
@@ -55,9 +58,11 @@ func NewController() Controller {
 	fsm.Configure(stateStarting).
 		OnEntry(func(_ context.Context, _ ...interface{}) error {
 			fmt.Println("Starting")
-			timer1 := time.NewTimer(2 * time.Second)
-			<-timer1.C
-			fsm.Fire(triggerStartCompleted)
+			go func() {
+				timer1 := time.NewTimer(2 * time.Second)
+				<-timer1.C
+				fsm.Fire(triggerStartCompleted)
+			}()
 			return nil
 		}).
 		Permit(triggerStartCompleted, stateRunning)
@@ -76,12 +81,15 @@ func NewController() Controller {
 
 	fsm.Configure(stateStopping).
 		OnEntry(func(_ context.Context, _ ...interface{}) error {
-			timer1 := time.NewTimer(2 * time.Second)
-			<-timer1.C
-			fsm.Fire(triggerStopCompleted)
+			fmt.Println("Stopping")
+			go func() {
+				timer1 := time.NewTimer(2 * time.Second)
+				<-timer1.C
+				fsm.Fire(triggerStopCompleted)
+			}()
 			return nil
 		}).
-		Permit(triggerStartCompleted, stateRunning)
+		Permit(triggerStopCompleted, stateIdle)
 
 	fsm.Fire(triggerInit)
 	return ctrl

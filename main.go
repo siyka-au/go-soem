@@ -124,9 +124,7 @@ func run(ctx context.Context, args []string) error {
 				trigged := trig.Run(el1008&0x01 != 0)
 				// fmt.Printf("Did we trig? %t\n", trigged)
 				if trigged {
-					fmt.Println("About to bump")
 					ctrl.Bump()
-					fmt.Println("Finished bumping")
 				}
 
 				light0DirUp = calcDir(light0DirUp, light0Max, 1, lights0)
