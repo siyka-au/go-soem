@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/siyka-au/go-soem/plc"
 	"github.com/siyka-au/go-soem/soem"
 )
 
@@ -77,27 +78,32 @@ func run(ctx context.Context, args []string) error {
 		fmt.Println(err)
 	}
 
-	ticker := time.NewTicker(200 * time.Millisecond)
+	// ctrl := NewController()
+
+	ticker := time.NewTicker(50 * time.Millisecond)
 
 	go func() {
 		const light0Max uint8 = 1 << 7
 		const light1Max uint8 = 1 << 3
-		// light0DirUp := true
-		// light1DirUp := true
-		// lights0 := uint8(1)
-		// lights1 := uint8(1)
+		light0DirUp := true
+		light1DirUp := true
+		lights0 := uint8(1)
+		lights1 := uint8(1)
 
-		// calcDir := func(dir bool, max, min, val uint8) bool {
-		// 	return (!(val == max) && (val == min)) || (dir && !(val == max))
-		// }
+		calcDir := func(dir bool, max, min, val uint8) bool {
+			return (!(val == max) && (val == min)) || (dir && !(val == max))
+		}
 
-		// stepLight := func(dir bool, val uint8) uint8 {
-		// 	if dir {
-		// 		return val << 1
-		// 	} else {
-		// 		return val >> 1
-		// 	}
-		// }
+		stepLight := func(dir bool, val uint8) uint8 {
+			if dir {
+				return val << 1
+			} else {
+				return val >> 1
+			}
+		}
+
+		trig := plc.NewRisingEdge()
+		ctrl := plc.NewController()
 
 		/*
 		 * Main PDO loop
@@ -107,22 +113,32 @@ func run(ctx context.Context, args []string) error {
 		for {
 			select {
 			case <-ticker.C:
-				fmt.Println("Processing I/O")
+				// fmt.Println("Processing I/O")
 				master.SendProcessData()
 				master.ReceiveProcessData(soem.EC_TIMEOUTRET)
 
-				// fmt.Printf("Inputs: %08b %08b\r", master.Slaves[1].Read()[0], master.Slaves[2].Read()[0])
+				el1008 := master.Slaves[1].Read()[0]
+				// el1004 := master.Slaves[2].Read()[0]
+				// fmt.Printf("Inputs: %08b %08b\n", el1008, el1004)
 
-				// light0DirUp = calcDir(light0DirUp, light0Max, 1, lights0)
-				// light1DirUp = calcDir(light1DirUp, light1Max, 1, lights1)
+				trigged := trig.Run(el1008&0x01 != 0)
+				// fmt.Printf("Did we trig? %t\n", trigged)
+				if trigged {
+					fmt.Println("About to bump")
+					ctrl.Bump()
+					fmt.Println("Finished bumping")
+				}
 
-				// lights0 = stepLight(light0DirUp, lights0)
-				// lights1 = stepLight(light1DirUp, lights1)
+				light0DirUp = calcDir(light0DirUp, light0Max, 1, lights0)
+				light1DirUp = calcDir(light1DirUp, light1Max, 1, lights1)
 
-				// master.Slaves[3].Write([]byte{lights0})
-				// master.Slaves[4].Write([]byte{lights1})
+				lights0 = stepLight(light0DirUp, lights0)
+				lights1 = stepLight(light1DirUp, lights1)
 
-				master.Slaves[0].Write([]byte{1, 2, 3, 4, 5, 6, 7, 8})
+				master.Slaves[3].Write([]byte{lights0})
+				master.Slaves[4].Write([]byte{lights1})
+
+				// master.Slaves[0].Write([]byte{1, 2, 3, 4, 5, 6, 7, 8})
 			case <-ctx.Done():
 				ticker.Stop()
 				return
