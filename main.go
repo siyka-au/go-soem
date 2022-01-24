@@ -102,9 +102,13 @@ func run(ctx context.Context, args []string) error {
 			}
 		}
 
-		trig := plc.NewRisingEdge()
 		// ctrl := controller.NewController()
-		am := plc.NewAutoManual()
+		// am := plc.NewAutoManual()
+		mc := plc.NewMultiClick(2, 500*time.Millisecond)
+
+		// startTrig := plc.NewRisingEdge()
+		// cancelTrig := plc.NewRisingEdge()
+		multiClickTrig := plc.NewRisingEdge()
 
 		/*
 		 * Main PDO loop
@@ -122,12 +126,16 @@ func run(ctx context.Context, args []string) error {
 				// el1004 := master.Slaves[2].Read()[0]
 				// fmt.Printf("Inputs: %08b %08b\n", el1008, el1004)
 
-				if trig.Run(el1008&0x01 != 0) {
-					am.StartManual(10 * time.Second)
-				}
+				// if startTrig.Run(el1008&0x01 != 0) {
+				// 	am.StartManual(10 * time.Second)
+				// }
 
-				if trig.Run(el1008&0x02 != 0) {
-					am.CancelManual()
+				// if cancelTrig.Run(el1008&0x02 != 0) {
+				// 	am.CancelManual()
+				// }
+
+				if multiClickTrig.Run(el1008&0x04 != 0) {
+					mc.Click()
 				}
 
 				light0DirUp = calcDir(light0DirUp, light0Max, 1, lights0)
@@ -139,12 +147,15 @@ func run(ctx context.Context, args []string) error {
 				master.Slaves[3].Write([]byte{lights0})
 				master.Slaves[4].Write([]byte{lights1})
 
-				// master.Slaves[0].Write([]byte{1, 2, 3, 4, 5, 6, 7, 8})
+				select {
+				case <-mc.Clicks:
+					fmt.Println("Clicked three times!")
+				default:
+				}
 			case <-ctx.Done():
 				ticker.Stop()
 				return
 			}
-
 		}
 	}()
 
